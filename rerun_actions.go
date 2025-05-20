@@ -124,29 +124,31 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 			h.Debugf("Skipping inactive workflow")
 			continue
 		}
-		opts := &github.ListWorkflowRunsOptions{
-			// Filter by whoever created the PR.
-			Actor: issue.GetUser().GetLogin(),
-			// Filter on pull request runs.
-			Event: "pull_request",
-		}
-		// TODO: paginate
-		workflowRuns, _, err := h.Actions.ListWorkflowRunsByID(ctx, repoOwner, repoName, workflow.GetID(), opts)
-		if err != nil {
-			h.Errorf("Failed to list workflow runs: %v", err)
-			return nil
-		}
-		for _, run := range workflowRuns.WorkflowRuns {
-			// Stop searching runs once an older run is found.
-			if run.GetCreatedAt().Before(pr.GetCreatedAt()) {
-				h.Debugf("Older workflow run than PR %d found", prNum)
-				break
+		for _, event := range []string{"pull_request", "pull_request_target"} {
+			opts := &github.ListWorkflowRunsOptions{
+				// Filter by whoever created the PR.
+				Actor: issue.GetUser().GetLogin(),
+				// Filter on pull request runs.
+				Event: event,
 			}
-			// A matching run's SHA will match the PR's head SHA.
-			if run.GetHeadSHA() == pr.GetHead().GetSHA() {
-				h.Debugf("Found run matching PR %d SHA %s", prNum, pr.GetHead().GetSHA())
-				runsToRerun = append(runsToRerun, run)
-				break
+			// TODO: paginate
+			workflowRuns, _, err := h.Actions.ListWorkflowRunsByID(ctx, repoOwner, repoName, workflow.GetID(), opts)
+			if err != nil {
+				h.Errorf("Failed to list workflow runs: %v", err)
+				return nil
+			}
+			for _, run := range workflowRuns.WorkflowRuns {
+				// Stop searching runs once an older run is found.
+				if run.GetCreatedAt().Before(pr.GetCreatedAt()) {
+					h.Debugf("Older workflow run than PR %d found", prNum)
+					break
+				}
+				// A matching run's SHA will match the PR's head SHA.
+				if run.GetHeadSHA() == pr.GetHead().GetSHA() {
+					h.Debugf("Found run matching PR %d SHA %s", prNum, pr.GetHead().GetSHA())
+					runsToRerun = append(runsToRerun, run)
+					break
+				}
 			}
 		}
 	}
