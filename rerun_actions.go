@@ -124,7 +124,7 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 			h.Debugf("Skipping inactive workflow")
 			continue
 		}
-		for _, event := range []string{"pull_request", "pull_request_target"} {
+		for _, event := range []string{"pull_request", "pull_request_target", "push"} {
 			opts := &github.ListWorkflowRunsOptions{
 				// Filter by whoever created the PR.
 				Actor: issue.GetUser().GetLogin(),
