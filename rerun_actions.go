@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/go-github/v33/github"
+	"github.com/google/go-github/v72/github"
 	actions "github.com/sethvargo/go-githubactions"
 	"golang.org/x/oauth2"
 )
@@ -139,7 +139,7 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 			}
 			for _, run := range workflowRuns.WorkflowRuns {
 				// Stop searching for runs once an older run is found.
-				if run.GetCreatedAt().Before(pr.GetCreatedAt()) {
+				if run.GetCreatedAt().Time.Before(pr.GetCreatedAt().Time) {
 					h.Debugf("Older workflow run than PR %d found", prNum)
 					break
 				}
