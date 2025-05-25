@@ -20,6 +20,7 @@ const (
 
 	canTestLabel              = "ok-to-test"
 	retestAllWorkflowsCommand = "rerun-all"
+	retestFailedJobsCommand   = "rerun-failed"
 	testWorkflowCommand       = "rerun-workflow"
 )
 
@@ -50,7 +51,7 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 
 	// Reduce the number of API calls when a PR comment that does not contain a command is created
 	// by returning if no commands are present in the comment body.
-	testsToRerun := parseCommentsToWorkflowNames(comment.GetBody())
+	testsToRerun, failedOnly := parseCommentsToWorkflowNames(comment.GetBody())
 	if len(testsToRerun) == 0 {
 		h.Debugf("No commands in comment body")
 		return nil
@@ -170,9 +171,16 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 		}
 
 		h.Infof("Rerunning %d", run.GetID())
-		_, err := h.Actions.RerunFailedJobsByID(ctx, repoOwner, repoName, run.GetID())
-		if err != nil {
-			h.Errorf("Failed to rerun workflow: %v", err)
+		if failedOnly {
+			_, err := h.Actions.RerunFailedJobsByID(ctx, repoOwner, repoName, run.GetID())
+			if err != nil {
+				h.Errorf("Failed to rerun failed jobs: %v", err)
+			}
+		} else {
+			_, err := h.Actions.RerunWorkflowByID(ctx, repoOwner, repoName, run.GetID())
+			if err != nil {
+				h.Errorf("Failed to rerun workflow: %v", err)
+			}
 		}
 	}
 
@@ -224,8 +232,9 @@ func isCommenterPrivileged(authorAssoc string) bool {
 	return isPrivileged
 }
 
-func parseCommentsToWorkflowNames(commentBody string) map[string]struct{} {
+func parseCommentsToWorkflowNames(commentBody string) (map[string]struct{}, bool) {
 	testsToRerun := make(map[string]struct{})
+	failedJobsOnly := false
 	scanner := bufio.NewScanner(strings.NewReader(commentBody))
 	for scanner.Scan() {
 		var splitComment []string
@@ -236,9 +245,12 @@ func parseCommentsToWorkflowNames(commentBody string) map[string]struct{} {
 		}
 		// Ignore non-command comments or comments smaller than any command size.
 		if len(splitComment) == 0 || len(splitComment[0]) < 5 || splitComment[0][0] != '/' {
-			return nil
+			return nil, failedJobsOnly
 		}
 		switch splitComment[0][1:] {
+		case retestFailedJobsCommand:
+			failedJobsOnly = true
+			testsToRerun[testAll] = struct{}{}
 		case retestAllWorkflowsCommand:
 			testsToRerun[testAll] = struct{}{}
 		case testWorkflowCommand:
@@ -248,7 +260,7 @@ func parseCommentsToWorkflowNames(commentBody string) map[string]struct{} {
 			testsToRerun[splitComment[1]] = struct{}{}
 		}
 	}
-	return testsToRerun
+	return testsToRerun, failedJobsOnly
 }
 
 // Infof prints an info-level message. The arguments follow the standard Printf
