@@ -170,7 +170,7 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 		}
 
 		h.Infof("Rerunning %d", run.GetID())
-		_, err := h.Actions.RerunWorkflowByID(ctx, repoOwner, repoName, run.GetID())
+		_, err := h.Actions.RerunFailedJobsByID(ctx, repoOwner, repoName, run.GetID())
 		if err != nil {
 			h.Errorf("Failed to rerun workflow: %v", err)
 		}
