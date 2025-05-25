@@ -57,6 +57,12 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 		return nil
 	}
 
+	// Add reaction to the comment
+	_, _, err = h.Client.Reactions.CreateIssueCommentReaction(ctx, repoOwner, repoName, comment.GetID(), "eyes")
+	if err != nil {
+		h.Warningf("Failed to add +1 reaction to comment: %v", err)
+	}
+
 	issue, _, err := h.getIssueForComment(ctx, comment)
 	if err != nil {
 		h.Errorf("Failed to get issue: %v", err)
