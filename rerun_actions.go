@@ -85,7 +85,7 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 
 	// Can't rerun actions on merged PRs.
 	if pr.GetMerged() {
-		h.Debugf("PR has been merged, cannot rerun workflows")
+		h.Infof("PR has been merged, cannot rerun workflows")
 		return nil
 	}
 
@@ -138,14 +138,14 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 				return nil
 			}
 			for _, run := range workflowRuns.WorkflowRuns {
-				// Stop searching runs once an older run is found.
+				// Stop searching for runs once an older run is found.
 				if run.GetCreatedAt().Before(pr.GetCreatedAt()) {
 					h.Debugf("Older workflow run than PR %d found", prNum)
 					break
 				}
 				// A matching run's SHA will match the PR's head SHA.
 				if run.GetHeadSHA() == pr.GetHead().GetSHA() {
-					h.Debugf("Found run matching PR %d SHA %s", prNum, pr.GetHead().GetSHA())
+					h.Infof("Found run matching PR %d SHA %s", prNum, pr.GetHead().GetSHA())
 					runsToRerun = append(runsToRerun, run)
 					break
 				}
@@ -157,19 +157,19 @@ func (h *handler) handle(ctx context.Context, repoOwner, repoName string, commen
 		if run.GetStatus() == completedStatus && run.GetConclusion() == successfulConclusion {
 			// Skip runs that have completed and succeeded, since they cannot be re-run.
 			// This is still being worked on server-side afaik.
-			h.Debugf("Workflow run %d succeeded, will not rerun", run.GetID())
+			h.Infof("Workflow run %d succeeded, will not rerun", run.GetID())
 			continue
 		}
 		if run.GetStatus() != completedStatus {
 			// Cancel non-completed runs before queuing a rerun.
-			h.Debugf("Cancellling %s run %v", run.GetStatus(), run.GetID())
+			h.Infof("Cancellling %s run %v", run.GetStatus(), run.GetID())
 			_, err := h.Actions.CancelWorkflowRunByID(ctx, repoOwner, repoName, run.GetID())
 			if err != nil {
 				h.Debugf("Failed to cancel workflow run: %v", err)
 			}
 		}
 
-		h.Debugf("Rerunning %d", run.GetID())
+		h.Infof("Rerunning %d", run.GetID())
 		_, err := h.Actions.RerunWorkflowByID(ctx, repoOwner, repoName, run.GetID())
 		if err != nil {
 			h.Errorf("Failed to rerun workflow: %v", err)
@@ -249,4 +249,10 @@ func parseCommentsToWorkflowNames(commentBody string) map[string]struct{} {
 		}
 	}
 	return testsToRerun
+}
+
+// Infof prints an info-level message. The arguments follow the standard Printf
+// arguments.
+func (h *handler) Infof(msg string, args ...interface{}) {
+	fmt.Printf("::notice::%s\n", fmt.Sprintf(msg, args...))
 }
